@@ -8,5 +8,6 @@ const router = express.Router();
 router.post("/upload", protect, upload.single("bill"), uploadBill);
 router.get("/", protect, getUserBills);
 router.get("/:id", protect, getBillById);
+router.post("/:id/extract", protect, extractBillText);
 
 module.exports = router;
