@@ -80,6 +80,41 @@ const extractBillText = async (req, res, next) => {
     next(err);
   }
 };
+const { parseBillText } = require("../services/parserService");
 
-// update the exports line at the bottom
-module.exports = { uploadBill, getUserBills, getBillById, extractBillText };
+// @desc    Parse extracted text into structured billing data
+// @route   POST /api/bills/:id/parse
+const parseBill = async (req, res, next) => {
+  try {
+    const bill = await Bill.findOne({ _id: req.params.id, userId: req.user._id });
+
+    if (!bill) {
+      return res.status(404).json({ message: "Bill not found" });
+    }
+
+    if (!bill.extractedText) {
+      return res.status(400).json({ message: "No extracted text found. Run OCR extraction first." });
+    }
+
+    if (bill.parsedData && bill.parsedData.length > 0) {
+      return res.status(400).json({ message: "Bill already parsed" });
+    }
+
+    const parsedResult = parseBillText(bill.extractedText);
+
+    bill.parsedData = parsedResult.lineItems;
+    await bill.save();
+
+    res.json({
+      message: "Bill parsed successfully",
+      billId: bill._id,
+      totalAmount: parsedResult.totalAmount,
+      itemCount: parsedResult.itemCount,
+      parsedData: parsedResult.lineItems,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { uploadBill, getUserBills, getBillById, extractBillText,parseBill };
