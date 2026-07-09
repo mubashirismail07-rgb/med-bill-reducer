@@ -2,6 +2,7 @@ const express = require("express");
 const { uploadBill, getUserBills, getBillById } = require("../controllers/billController");
 const { protect } = require("../middleware/authMiddleware");
 const upload = require("../config/multer");
+const { extractBillText } = require('../controllers/billController.js')
 
 const router = express.Router();
 
