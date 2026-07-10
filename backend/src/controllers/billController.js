@@ -116,5 +116,39 @@ const parseBill = async (req, res, next) => {
     next(err);
   }
 };
+const { analyzeBill } = require("../services/aiService");
 
-module.exports = { uploadBill, getUserBills, getBillById, extractBillText,parseBill };
+// @desc    Run AI analysis on parsed bill
+// @route   POST /api/bills/:id/analyze
+const analyzeBillWithAI = async (req, res, next) => {
+  try {
+    const bill = await Bill.findOne({ _id: req.params.id, userId: req.user._id });
+
+    if (!bill) {
+      return res.status(404).json({ message: "Bill not found" });
+    }
+
+    if (!bill.parsedData || bill.parsedData.length === 0) {
+      return res.status(400).json({ message: "No parsed data found. Run parsing first." });
+    }
+
+    if (bill.aiAnalysis) {
+      return res.status(400).json({ message: "AI analysis already exists for this bill" });
+    }
+
+    const analysis = await analyzeBill(bill.parsedData, bill.extractedText);
+
+    bill.aiAnalysis = analysis;
+    await bill.save();
+
+    res.json({
+      message: "AI analysis complete",
+      billId: bill._id,
+      aiAnalysis: analysis,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { uploadBill, getUserBills, getBillById, extractBillText,parseBill,analyzeBillWithAI };
