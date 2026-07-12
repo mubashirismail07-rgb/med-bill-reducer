@@ -7,6 +7,7 @@ const { notFound, errorHandler } = require("./src/middleware/errorMiddleware");
 const authRoutes = require("./src/routes/authRoutes");
 const billRoutes = require("./src/routes/billRoutes")
 const dashboardRoutes = require("./src/routes/dashboardRoutes");
+const reportRoutes = require("./src/routes/reportRoutes")
 
 
 connectDB();
@@ -23,6 +24,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use('/api/bills',billRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/reports", reportRoutes);
 
 
 app.use(notFound);
