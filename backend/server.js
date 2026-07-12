@@ -6,6 +6,7 @@ const connectDB = require("./src/config/db");
 const { notFound, errorHandler } = require("./src/middleware/errorMiddleware");
 const authRoutes = require("./src/routes/authRoutes");
 const billRoutes = require("./src/routes/billRoutes")
+const dashboardRoutes = require("./src/routes/dashboardRoutes");
 
 
 connectDB();
@@ -21,6 +22,8 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use('/api/bills',billRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+
 
 app.use(notFound);
 app.use(errorHandler);
