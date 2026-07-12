@@ -150,5 +150,41 @@ const analyzeBillWithAI = async (req, res, next) => {
     next(err);
   }
 };
+const { runRuleBasedChecks } = require("../services/ruleService");
 
-module.exports = { uploadBill, getUserBills, getBillById, extractBillText,parseBill,analyzeBillWithAI };
+// @desc    Run rule-based checks on parsed bill
+// @route   POST /api/bills/:id/rule-check
+const runRuleCheck = async (req, res, next) => {
+  try {
+    const bill = await Bill.findOne({ _id: req.params.id, userId: req.user._id });
+
+    if (!bill) {
+      return res.status(404).json({ message: "Bill not found" });
+    }
+
+    if (!bill.parsedData || bill.parsedData.length === 0) {
+      return res.status(400).json({ message: "No parsed data found. Run parsing first." });
+    }
+
+    const ruleBasedFlags = runRuleBasedChecks(bill.parsedData);
+
+    // Merge into existing aiAnalysis or create a new object
+    const updatedAnalysis = {
+      ...(bill.aiAnalysis || {}),
+      ruleBasedFlags,
+    };
+
+    bill.aiAnalysis = updatedAnalysis;
+    await bill.save();
+
+    res.json({
+      message: "Rule-based analysis complete",
+      billId: bill._id,
+      ruleBasedFlags,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { uploadBill, getUserBills, getBillById, extractBillText,parseBill,analyzeBillWithAI,runRuleCheck };
