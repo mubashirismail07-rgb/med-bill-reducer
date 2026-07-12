@@ -15,12 +15,17 @@ connectDB();
 const app = express();
 
 app.use(cors({
-  origin : [
+  origin: [
     "http://localhost:5173",
-    "https://med-bill-reducer.vercel.app"
+    "https://med-bill-reducer.vercel.app",
   ],
-  credentials : true
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
+
+// Handle preflight requests
+app.options("*", cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
