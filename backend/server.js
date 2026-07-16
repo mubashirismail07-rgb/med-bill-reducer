@@ -1,6 +1,6 @@
 const express = require("express");
 const app = express();
-const cors = require("cors");
+
 // CORS must be first
 app.use((req, res, next) => {
   const allowedOrigins = [
@@ -22,6 +22,7 @@ app.use((req, res, next) => {
 
 const dotenv = require("dotenv");
 dotenv.config();
+const cors = require("cors");
 const connectDB = require("./src/config/db");
 const { notFound, errorHandler } = require("./src/middleware/errorMiddleware");
 const authRoutes = require("./src/routes/authRoutes");
