@@ -122,7 +122,7 @@ const Upload = () => {
               {file ? file.name : "Click to select a file"}
             </p>
             <p style={{ fontSize: "0.85rem", color: "#6b7280" }}>
-              PDF, PNG, or JPG — max 10MB
+              PNG, or JPG — max 10MB
             </p>
             <input
               id="fileInput"
