@@ -22,7 +22,6 @@ app.use((req, res, next) => {
 
 const dotenv = require("dotenv");
 dotenv.config();
-const cors = require("cors");
 const connectDB = require("./src/config/db");
 const { notFound, errorHandler } = require("./src/middleware/errorMiddleware");
 const authRoutes = require("./src/routes/authRoutes");
