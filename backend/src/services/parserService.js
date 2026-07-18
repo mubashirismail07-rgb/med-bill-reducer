@@ -28,7 +28,7 @@ const isNoiseLine = (line) => {
     /^amount due/i,
     /^date/i,
     /^invoice/i,
-    /^patient name/i,
+    /^patient/i,
     /^account/i,
     /^page/i,
     /^thank you/i,
@@ -40,6 +40,17 @@ const isNoiseLine = (line) => {
     /^address/i,
     /^phone/i,
     /^tax/i,
+    /^bill no/i,
+    /^bill/i,
+    /^metro/i,
+    /^medical drive/i,
+    /^healthcare/i,
+    /^itemized/i,
+    /^ward/i,
+    /^discharge/i,
+    /^admission/i,
+    /^name/i,
+    /^MH-/i,
   ];
   return noise.some((pattern) => pattern.test(line.trim()));
 };

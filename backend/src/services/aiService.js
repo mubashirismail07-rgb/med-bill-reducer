@@ -66,7 +66,7 @@ Rules:
     model: "openai/gpt-oss-20b",
     messages: [{ role: "user", content: prompt }],
     temperature: 0.3,
-    max_tokens: 2000,
+    max_tokens: 4000,
   });
 
   const rawContent = response.choices[0].message.content.trim();
