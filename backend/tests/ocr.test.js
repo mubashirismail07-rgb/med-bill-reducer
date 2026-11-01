@@ -170,3 +170,21 @@ test("timeout and command failure clean up; OCR work is bounded", () =>
     await assert.rejects(() => work, /timed out/);
     assert.ok(!(await fs.readdir(dir)).some((n) => n.startsWith("medreduce-")));
   }));
+
+test("missing PDF/OCR executable reports a deployment problem", () =>
+  temp(async (dir) => {
+    const file = await fixture(dir, "a.pdf", (d) => d.text("Text"));
+    await assert.rejects(
+      () =>
+        extractPages(file, "pdf", {
+          tmpRoot: dir,
+          command: async (name) => {
+            throw Object.assign(new Error(`${name} not found`), {
+              code: "ENOENT",
+              tool: name,
+            });
+          },
+        }),
+      /Required PDF\/OCR tool "pdfinfo" is not installed/,
+    );
+  }));
