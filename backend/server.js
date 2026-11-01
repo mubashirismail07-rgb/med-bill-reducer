@@ -1,49 +1,42 @@
+if (require.main === module) require("dotenv").config();
 const express = require("express");
+const cors = require("cors");
 const app = express();
-
-// CORS must be first
-app.use((req, res, next) => {
-  const allowedOrigins = [
-    "http://localhost:5173",
-    "https://med-bill-reducer.vercel.app",
-  ];
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.header("Access-Control-Allow-Credentials", "true");
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
-const dotenv = require("dotenv");
-dotenv.config();
-const connectDB = require("./src/config/db");
+const origins = (
+  process.env.FRONTEND_URLS ||
+  "http://localhost:5173,https://med-bill-reducer.vercel.app"
+)
+  .split(",")
+  .map((s) => s.trim());
+app.use(
+  cors({
+    origin: origins,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
+app.use(express.json({ limit: "512kb" }));
+app.get("/", (_req, res) =>
+  res.json({ message: "MedReduce API", status: "ok" }),
+);
+app.use("/api/auth", require("./src/routes/authRoutes"));
+app.use("/api/bills", require("./src/routes/billRoutes"));
+app.use("/api/dashboard", require("./src/routes/dashboardRoutes"));
+app.use("/api/reports", require("./src/routes/reportRoutes"));
 const { notFound, errorHandler } = require("./src/middleware/errorMiddleware");
-const authRoutes = require("./src/routes/authRoutes");
-const billRoutes = require("./src/routes/billRoutes");
-const dashboardRoutes = require("./src/routes/dashboardRoutes");
-const reportRoutes = require("./src/routes/reportRoutes");
-
-connectDB();
-
-app.use(express.json());
-
-app.get("/", (req, res) => {
-  res.json({ message: "MedReduce AI backend is running" });
-});
-
-app.use("/api/auth", authRoutes);
-app.use("/api/bills", billRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/reports", reportRoutes);
-
 app.use(notFound);
 app.use(errorHandler);
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+if (require.main === module) {
+  require("./src/config/db")().then(() => {
+    const { sweepUploads } = require("./src/services/storageService");
+    sweepUploads().catch(() => console.error("Upload cleanup failed"));
+    setInterval(
+      () => sweepUploads().catch(() => console.error("Upload cleanup failed")),
+      3600000,
+    ).unref();
+    app.listen(process.env.PORT || 5000, "0.0.0.0", () =>
+      console.log("MedReduce API listening"),
+    );
+  });
+}
+module.exports = app;

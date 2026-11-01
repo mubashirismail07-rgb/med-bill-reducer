@@ -20,6 +20,13 @@ const billSchema = new mongoose.Schema(
       enum: ["pdf", "image"],
       required: true,
     },
+    currency: { type: String, default: null },
+    extraction: { type: Object, default: null },
+    pages: { type: Array, default: [] },
+    processing: { type: Object, default: null },
+    reviewedAt: { type: Date, default: null },
+    originalExpiresAt: { type: Date, default: null },
+    revision: { type: Number, default: 0 },
     extractedText: {
       type: String,
       default: null,
@@ -33,7 +40,7 @@ const billSchema = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Bill", billSchema);
