@@ -18,7 +18,8 @@ const command = (name, args, timeout) =>
         maxBuffer: 2 * 1024 * 1024,
         env: { ...process.env, OMP_THREAD_LIMIT: "1" },
       },
-      (err, stdout) => (err ? reject(err) : resolve(stdout)),
+      (err, stdout) =>
+        err ? reject(Object.assign(err, { tool: name })) : resolve(stdout),
     ),
   );
 async function validateFile(file, type) {
@@ -182,6 +183,11 @@ async function extractPages(file, type, options = {}) {
     return pages;
   } catch (err) {
     if (err.status) throw err;
+    if (err.code === "ENOENT" && err.tool)
+      throw error(
+        `Required PDF/OCR tool "${err.tool}" is not installed on the server. Deploy the backend with the provided Dockerfile or contact the administrator.`,
+        503,
+      );
     if (err.code === "ENOENT")
       throw error(
         "Original file or required PDF/OCR tool is unavailable. Reattach the original or contact the administrator.",
