@@ -1,136 +1,75 @@
 # MedReduce AI
 
-An AI-powered medical bill analysis platform that helps patients understand, verify, and question their hospital bills.
+A medical-bill review workspace built with React, Express and MongoDB. Upload a PDF or image, review extracted charges, reconcile the bill total, and prepare questions for your provider.
 
-🔗 **Live Demo:** https://med-bill-reducer.vercel.app
+**Existing deployment:** https://med-bill-reducer.vercel.app · **New isolated demo route:** `/sample` (available after deploying this branch).
 
----
+This branch is a portfolio upgrade; the existing production deployment has not been changed. Findings are review prompts, not confirmed billing errors or guaranteed savings.
 
-## What it does
+## What's included
 
-Upload a photo of your hospital bill and MedReduce AI will:
+- PDF, PNG and JPEG processing with content validation, conservative limits and actionable errors.
+- Page-by-page PDF text extraction with Poppler; scanned or mixed-content pages use native Tesseract OCR after Sharp preprocessing.
+- Saved extraction/review checkpoints, retry/resume, refresh recovery and reattachment when an ephemeral original is missing.
+- Editable charge descriptions, quantities, unit prices, line totals, currency, printed total, taxes and discounts before analysis.
+- Separate printed totals and extracted sums, discrepancy notices, and currency-separated dashboard totals.
+- Deterministic possible-duplicate/configured-threshold findings, separate validated AI suggestions, and links to charges and source pages.
+- A responsive dashboard, upload/review flow, searchable history, accessible account screens and a fictional precomputed sample requiring no account or API calls.
+- PDFKit reports with long-description wrapping, repeated table headers, page numbers and explicit currency codes.
+- Docker deployment configuration for Render, retaining Vercel and MongoDB Atlas.
 
-- Extract the text using OCR
-- Parse it into structured line items
-- Explain each charge in plain language using AI
-- Detect duplicate and suspicious charges
-- Flag abnormally high costs
-- Suggest cost-saving actions
-- Generate questions you can ask your hospital or insurance provider
-- Produce a downloadable PDF report
+## Stack
 
----
+React 19, Vite, React Router, Axios, plain CSS; Node 22, Express, Mongoose, JWT/bcrypt; Poppler, native Tesseract and Sharp; Groq; PDFKit with DejaVu Sans. No Redis, durable job queue, paid storage service or framework migration.
 
-## Tech Stack
+## Run locally
 
-**Frontend**
-- React.js + Vite
-- React Router
-- Axios
-- Recharts
-- Plain CSS
+Use Node 22 and an isolated development database. Copy `backend/.env.example` to `backend/.env`, and `frontend/.env.example` to `frontend/.env`. Supply your own backend credentials. Never put a secret in a `VITE_*` variable.
 
-**Backend**
-- Node.js + Express.js
-- MongoDB + Mongoose
-- JWT Authentication + Bcrypt
+On Debian/Ubuntu, install `poppler-utils tesseract-ocr tesseract-ocr-eng fonts-dejavu-core`, or use the backend Dockerfile.
 
-**AI / OCR**
-- Tesseract.js (OCR)
-- Sharp (image preprocessing)
-- Groq API / Llama3 (AI analysis)
-
-**Report Generation**
-- PDFKit
-
-**Deployment**
-- Frontend → Vercel
-- Backend → Render
-- Database → MongoDB Atlas
-
----
-
-## Features
-
-- **User Authentication** — register, login, protected routes via JWT
-- **Bill Upload** — PNG and JPG support with file validation
-- **OCR Pipeline** — image preprocessing with Sharp before Tesseract reads it
-- **Parsing Engine** — converts raw OCR text into structured JSON line items
-- **AI Analysis** — plain-language charge explanations, duplicate detection, cost-saving suggestions, and patient questions via Groq/Llama3
-- **Rule-Based Engine** — deterministic checks for duplicate charges, repeated lab tests, abnormally high costs, and missing descriptions
-- **Dashboard** — total spend, flag counts, average bill amount, recent bills chart
-- **Bill History** — filter by analysis status, delete bills
-- **PDF Reports** — downloadable reports with full analysis breakdown
-
----
-
-## How to Use
-
-1. Register or log in at the live link
-2. Click **Upload Bill**
-3. Upload a clear PNG or JPG photo of your hospital bill
-4. Wait for the automatic analysis to complete (~15-30 seconds)
-5. View the full breakdown — charges, flags, AI suggestions, questions to ask
-6. Download your PDF report
-
----
-
-## Running Locally
-
-### Prerequisites
-- Node.js
-- MongoDB running locally
-- Groq API key (free at console.groq.com)
-
-### Backend
-```bash
+```sh
 cd backend
-npm install
-```
-
-Create `backend/.env`:
-```
-PORT=5000
-MONGO_URI=mongodb://127.0.0.1:27017/medreduce
-JWT_SECRET=your_jwt_secret
-JWT_EXPIRES_IN=7d
-GROQ_API_KEY=your_groq_key
-```
-
-```bash
-node server.js
-```
-
-### Frontend
-```bash
-cd frontend
-npm install
-```
-
-Create `frontend/.env`:
-```
-VITE_API_URL=http://localhost:5000/api
-```
-
-```bash
+npm ci
 npm run dev
 ```
 
----
+In another terminal:
 
-## Known Limitations
+```sh
+cd frontend
+npm ci
+npm run dev
+```
 
-- **PDF uploads are not supported** in the current deployment. PDF OCR requires Poppler, a system-level dependency not available on the free hosting tier. Planned upgrade: replace Tesseract with Google Vision API or AWS Textract, which handle PDFs natively with no system dependencies.
-- OCR accuracy depends on image quality. Clear, well-lit photos of printed bills work best. Handwritten or low-resolution scans may produce incomplete results.
-- The Render free tier spins down after 15 minutes of inactivity. The first request after inactivity may take 30-60 seconds to respond.
+Open `http://localhost:5173/sample` for the isolated demo. The sample needs only the frontend; real uploads need the backend/database. Missing Groq credentials leave AI analysis incomplete with saved rule findings and a retry action.
 
----
+## Verify
 
-## Planned Upgrades
+```sh
+cd backend
+npm test
+node tests/render-samples.js
+```
 
-- PDF support via Google Vision API or AWS Textract
-- Cloudinary or AWS S3 for persistent file storage
-- Bill comparison across multiple uploads
-- Insurance coverage estimation
-- Chat with your bill (conversational Q&A on uploaded bills)
-- Multi-language support
+```sh
+cd frontend
+npm run lint
+npm run build
+npx playwright install chromium
+npx playwright test
+```
+
+Tests use synthetic documents and stubbed database/API interactions, never real patient records or live AI calls. Real Poppler/Tesseract tests require the installed binaries. Browser tests cover sample isolation, review/retry, loading/error/empty states, and mobile overflow. Generated screenshots and sample PDFs are local artifacts under `artifacts/` and are ignored by Git.
+
+See [verification notes](docs/VERIFICATION.md), [deployment steps and environment variables](docs/DEPLOYMENT.md), and [architecture/interview guide](docs/ARCHITECTURE.md).
+
+## Important limits
+
+Defaults: 5 MB, 5 PDF pages, 120-second PDF/OCR deadline, one OCR job per backend process, sequential pages. OCR is English-only and sensitive to scan quality. The parser deliberately flags uncertain lines; it is not a universal invoice parser. Confirm all charges against the source.
+
+Processing is request-driven, not a durable background queue. A server restart can interrupt a stage. Saved MongoDB checkpoints survive; unsaved work may repeat. Keep one backend instance. Originals are private temporary files, deleted after text extraction or on expiry; a restart may remove them sooner. Reattach a missing original to the same bill. No durable original-viewing feature is promised.
+
+Old records remain readable without silently assigning a currency or treating old AI/rule objects as complete. Review them to use the new analysis pipeline. Multi-currency bills must be split or reconciled externally; there is no exchange-rate conversion.
+
+A deployed smoke test is still required for Render memory/latency, Atlas connectivity, authentication and Groq availability. Local tests do not establish production compatibility.

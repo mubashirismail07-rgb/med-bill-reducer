@@ -1,277 +1,163 @@
 const PDFDocument = require("pdfkit");
-
-const generateBillReport = (bill, res) => {
-  const doc = new PDFDocument({ margin: 50 });
-
-  // Stream directly to response
+const fs = require("fs");
+const { summarize } = require("./billSummary");
+function generateBillReport(bill, res) {
+  const doc = new PDFDocument({ size: "A4", margin: 48, bufferPages: true });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader(
     "Content-Disposition",
-    `attachment; filename=MedReduce-Report-${bill._id}.pdf`
+    `attachment; filename="MedReduce-Report-${bill._id}.pdf"`,
   );
   doc.pipe(res);
-
-  const primaryColor = "#2563eb";
-  const dangerColor = "#dc2626";
-  const warningColor = "#d97706";
-  const successColor = "#16a34a";
-  const grayColor = "#6b7280";
-
-  // ── Header ──────────────────────────────────────────────
-  doc
-    .fillColor(primaryColor)
-    .fontSize(24)
-    .text("MedReduce AI", { align: "center" })
-    .fontSize(12)
-    .fillColor(grayColor)
-    .text("Medical Bill Analysis Report", { align: "center" })
-    .moveDown(0.5);
-
-  doc
-    .moveTo(50, doc.y)
-    .lineTo(550, doc.y)
-    .strokeColor(primaryColor)
-    .stroke()
-    .moveDown(1);
-
-  // ── Bill Info ────────────────────────────────────────────
-  doc
-    .fillColor("#111827")
-    .fontSize(14)
-    .text("Bill Information", { underline: true })
-    .moveDown(0.5);
-
-  doc.fontSize(11).fillColor("#374151");
-  doc.text(`File Name: ${bill.fileName}`);
-  doc.text(`Upload Date: ${new Date(bill.createdAt).toLocaleDateString()}`);
-  doc.text(`Report Generated: ${new Date().toLocaleDateString()}`);
-  doc.moveDown(1);
-
-  // ── Parsed Line Items ────────────────────────────────────
-  const items = (bill.parsedData || []).map((i) =>
-    i.toObject ? i.toObject() : i
+  const font =
+    process.env.REPORT_FONT_PATH ||
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+  if (fs.existsSync(font)) doc.font(font);
+  // Currency codes avoid ambiguous symbols and unsupported glyphs in fallback fonts.
+  const money = (n) =>
+    n == null
+      ? "Not recorded"
+      : `${bill.currency || "Currency unknown"} ${Number(n).toFixed(2)}`;
+  const s = summarize(bill);
+  const bottom = doc.page.height - 65;
+  const room = (h) => {
+    if (doc.y + h > bottom) doc.addPage();
+  };
+  const text = (value, size = 10, color = "#344d59") => {
+    doc.fontSize(size).fillColor(color);
+    doc.text(String(value), 48, doc.y, { width: 499, lineGap: 3 });
+  };
+  const section = (title) => {
+    room(80);
+    doc.moveDown(0.8);
+    text(title, 14, "#176d77");
+    doc.moveDown(0.4);
+  };
+  text("MedReduce AI", 24, "#176d77");
+  text("MEDICAL BILL REVIEW", 9, "#687e88");
+  doc.moveDown();
+  text(bill.fileName, 12);
+  text(`Uploaded: ${new Date(bill.createdAt).toISOString().slice(0, 10)}`);
+  text(`Status: ${s.status}`);
+  text(
+    "Review support only. Possible issues are not confirmed errors or guaranteed savings.",
+    9,
   );
-  const totalAmount = items.reduce((sum, i) => sum + (i.amount || 0), 0);
-
-  doc
-    .fillColor("#111827")
-    .fontSize(14)
-    .text("Itemized Charges", { underline: true })
-    .moveDown(0.5);
-
-  if (items.length === 0) {
-    doc.fontSize(11).fillColor(grayColor).text("No parsed items available.");
-  } else {
-    // Table header
-    doc.fontSize(11).fillColor(primaryColor);
-    doc.text("Item", 50, doc.y, { width: 350, continued: true });
-    doc.text("Amount", { width: 100, align: "right" });
-
+  doc.moveDown();
+  text(`Printed bill total: ${money(s.printedTotal)}`, 13);
+  text(`Extracted charge sum: ${money(s.lineTotal)}`);
+  text(`Taxes / discounts / credits: ${money(s.adjustments)}`);
+  text(`Charges plus adjustments: ${money(s.expectedTotal)}`);
+  text(`Difference from printed total: ${money(s.discrepancy)}`);
+  text(`Distinct flagged charges: ${s.affectedCharges}`);
+  section("Itemized charges");
+  const header = () => {
+    const y = doc.y;
+    doc.rect(48, y, 499, 25).fill("#edf4f5");
+    doc.fillColor("#375963").fontSize(9);
+    doc.text("CHARGE / SOURCE", 58, y + 7, { width: 310 });
+    doc.text("AMOUNT", 380, y + 7, { width: 155, align: "right" });
+    doc.y = y + 32;
+  };
+  header();
+  for (const [index, row] of (bill.parsedData || []).entries()) {
+    const description = `${index + 1}. ${row.item}\n${row.page ? `Page ${row.page}` : "Source not recorded"}${row.quantity != null ? ` | Qty ${row.quantity}` : ""}${row.unitPrice != null ? ` | Unit ${money(row.unitPrice)}` : ""}`;
+    doc.fontSize(10);
+    const height =
+      Math.max(
+        doc.heightOfString(description, { width: 315, lineGap: 3 }),
+        30,
+      ) + 18;
+    if (doc.y + height > bottom) {
+      doc.addPage();
+      header();
+    }
+    const y = doc.y;
     doc
-      .moveTo(50, doc.y)
-      .lineTo(550, doc.y)
-      .strokeColor("#e5e7eb")
+      .fillColor("#344d59")
+      .text(description, 58, y, { width: 315, lineGap: 3 });
+    doc.text(money(row.amount), 380, y, { width: 155, align: "right" });
+    doc
+      .moveTo(48, y + height - 7)
+      .lineTo(547, y + height - 7)
+      .strokeColor("#e1e8eb")
       .stroke();
-
-    // Table rows
-    for (const item of items) {
-      doc.fillColor("#374151").fontSize(10);
-      const y = doc.y + 4;
-      doc.text(item.item, 50, y, { width: 350, continued: true });
-      doc.text(`$${item.amount.toFixed(2)}`, { width: 100, align: "right" });
-    }
-
-    doc
-      .moveTo(50, doc.y)
-      .lineTo(550, doc.y)
-      .strokeColor("#e5e7eb")
-      .stroke()
-      .moveDown(0.5);
-
-    doc
-      .fontSize(12)
-      .fillColor("#111827")
-      .text("Total Amount", 50, doc.y, { width: 350, continued: true })
-      .fillColor(primaryColor)
-      .text(`$${totalAmount.toFixed(2)}`, { width: 100, align: "right" });
+    doc.y = y + height;
   }
-
-  doc.moveDown(1.5);
-
-  // ── AI Summary ───────────────────────────────────────────
-  const ai = bill.aiAnalysis;
-
-  if (ai && ai.summary) {
-    doc
-      .fillColor("#111827")
-      .fontSize(14)
-      .text("AI Summary", { underline: true })
-      .moveDown(0.5);
-
-    doc.fontSize(11).fillColor("#374151").text(ai.summary).moveDown(1.5);
-  }
-
-  // ── Rule-Based Flags ─────────────────────────────────────
-  if (ai && ai.ruleBasedFlags) {
-    const flags = ai.ruleBasedFlags;
-
-    doc
-      .fillColor("#111827")
-      .fontSize(14)
-      .text("Issues Detected", { underline: true })
-      .moveDown(0.5);
-
-    if (!flags.hasIssues) {
-      doc
-        .fontSize(11)
-        .fillColor(successColor)
-        .text("✓ No issues detected by the rule-based engine.")
-        .moveDown(1);
-    } else {
-      // Duplicate charges
-      if (flags.duplicateCharges && flags.duplicateCharges.length > 0) {
-        doc
-          .fontSize(12)
-          .fillColor(dangerColor)
-          .text("Duplicate Charges")
-          .moveDown(0.3);
-        for (const flag of flags.duplicateCharges) {
-          doc
-            .fontSize(10)
-            .fillColor("#374151")
-            .text(`• ${flag.message}`)
-            .moveDown(0.3);
-        }
-        doc.moveDown(0.5);
-      }
-
-      // Repeated lab tests
-      if (flags.repeatedLabTests && flags.repeatedLabTests.length > 0) {
-        doc
-          .fontSize(12)
-          .fillColor(warningColor)
-          .text("Repeated Lab Tests")
-          .moveDown(0.3);
-        for (const flag of flags.repeatedLabTests) {
-          doc
-            .fontSize(10)
-            .fillColor("#374151")
-            .text(`• ${flag.message}`)
-            .moveDown(0.3);
-        }
-        doc.moveDown(0.5);
-      }
-
-      // High cost items
-      if (flags.highCostItems && flags.highCostItems.length > 0) {
-        doc
-          .fontSize(12)
-          .fillColor(warningColor)
-          .text("High Cost Items")
-          .moveDown(0.3);
-        for (const flag of flags.highCostItems) {
-          doc
-            .fontSize(10)
-            .fillColor("#374151")
-            .text(`• ${flag.message}`)
-            .moveDown(0.3);
-        }
-        doc.moveDown(0.5);
-      }
-
-      // Missing descriptions
-      if (flags.missingDescriptions && flags.missingDescriptions.length > 0) {
-        doc
-          .fontSize(12)
-          .fillColor(grayColor)
-          .text("Missing Descriptions")
-          .moveDown(0.3);
-        for (const flag of flags.missingDescriptions) {
-          doc
-            .fontSize(10)
-            .fillColor("#374151")
-            .text(`• ${flag.message}`)
-            .moveDown(0.3);
-        }
-        doc.moveDown(0.5);
-      }
+  if (bill.extraction?.adjustments?.length) {
+    section("Adjustments");
+    for (const a of bill.extraction.adjustments) {
+      room(40);
+      text(`${a.item}: ${money(a.amount)}`);
     }
   }
-
-  // ── Suspicious Charges ───────────────────────────────────
-  if (ai && ai.suspiciousCharges && ai.suspiciousCharges.length > 0) {
-    doc
-      .fillColor("#111827")
-      .fontSize(14)
-      .text("Suspicious Charges", { underline: true })
-      .moveDown(0.5);
-
-    for (const charge of ai.suspiciousCharges) {
-      doc
-        .fontSize(11)
-        .fillColor(dangerColor)
-        .text(`${charge.item} — $${charge.amount}`)
-        .fillColor("#374151")
-        .fontSize(10)
-        .text(`Reason: ${charge.reason}`)
-        .moveDown(0.5);
-    }
+  section("Rule findings");
+  if (!s.ruleFindings.length)
+    text(
+      bill.reviewedAt && bill.aiAnalysis?.ruleBasedFlags
+        ? "No issues flagged by configured rules."
+        : "Rule analysis has not completed.",
+    );
+  for (const f of s.ruleFindings) {
+    room(95);
+    text(
+      f.kind === "possible_duplicate" ? "Possible duplicate" : "Review flag",
+      11,
+      "#906019",
+    );
+    text(f.message);
+    text(
+      `Charges: ${f.rowIds.join(", ")}${f.pages?.length ? ` | Pages: ${f.pages.join(", ")}` : ""}`,
+      9,
+    );
     doc.moveDown(0.5);
   }
-
-  // ── Cost Saving Suggestions ──────────────────────────────
-  if (ai && ai.costSavingSuggestions && ai.costSavingSuggestions.length > 0) {
-    doc
-      .fillColor("#111827")
-      .fontSize(14)
-      .text("Cost-Saving Suggestions", { underline: true })
-      .moveDown(0.5);
-
-    for (const suggestion of ai.costSavingSuggestions) {
-      doc
-        .fontSize(11)
-        .fillColor(successColor)
-        .text(`✓ ${suggestion}`)
-        .moveDown(0.3);
-    }
-    doc.moveDown(1);
+  section("AI suggestions — verify with your provider");
+  text(
+    bill.aiAnalysis?.aiStatus === "complete"
+      ? bill.aiAnalysis.summary || "No summary provided."
+      : "AI analysis is incomplete or unavailable.",
+  );
+  for (const f of s.suggestions) {
+    room(75);
+    text(`${f.message}\nCharges: ${f.rowIds.join(", ")}`);
+    doc.moveDown(0.5);
   }
-
-  // ── Questions To Ask ─────────────────────────────────────
-  if (ai && ai.questionsToAsk && ai.questionsToAsk.length > 0) {
-    doc
-      .fillColor("#111827")
-      .fontSize(14)
-      .text("Questions To Ask Your Provider", { underline: true })
-      .moveDown(0.5);
-
-    for (let i = 0; i < ai.questionsToAsk.length; i++) {
-      doc
-        .fontSize(11)
-        .fillColor("#374151")
-        .text(`${i + 1}. ${ai.questionsToAsk[i]}`)
-        .moveDown(0.3);
-    }
-    doc.moveDown(1);
+  section("Questions for your provider");
+  const questions = bill.aiAnalysis?.questions?.length
+    ? bill.aiAnalysis.questions
+    : [
+        "Can you explain the itemized charges and any repeated services?",
+        "Does the total include all taxes, credits and discounts?",
+      ];
+  for (const [i, q] of questions.entries()) {
+    room(55);
+    text(`${i + 1}. ${q}`);
+    doc.moveDown(0.5);
   }
-
-  // ── Footer ───────────────────────────────────────────────
-  doc
-    .moveTo(50, doc.y)
-    .lineTo(550, doc.y)
-    .strokeColor("#e5e7eb")
-    .stroke()
-    .moveDown(0.5);
-
-  doc
-    .fontSize(9)
-    .fillColor(grayColor)
-    .text(
-      "This report is generated by MedReduce AI and is intended for informational purposes only. It does not constitute medical or legal advice. Always consult a qualified professional before making decisions based on this report.",
-      { align: "center" }
+  section("Extraction notes");
+  text(
+    "Compare this report with the original bill. OCR and parsing can miss or misread charges. Currency and rows may have been edited by the account owner.",
+  );
+  if (bill.extraction?.ambiguous?.length)
+    text(
+      `${bill.extraction.ambiguous.length} source lines could not be confidently parsed. Review the saved source text in the app.`,
     );
-
+  const range = doc.bufferedPageRange();
+  for (let i = 0; i < range.count; i++) {
+    doc.switchToPage(i);
+    doc.page.margins.bottom = 0;
+    doc
+      .fontSize(8)
+      .fillColor("#70848e")
+      .text(
+        `MedReduce AI  |  Review support                    Page ${i + 1} of ${range.count}`,
+        48,
+        doc.page.height - 42,
+        { width: 499, lineBreak: false },
+      );
+  }
   doc.end();
-};
-
+  return doc;
+}
 module.exports = { generateBillReport };

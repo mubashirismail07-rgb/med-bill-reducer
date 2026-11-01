@@ -1,235 +1,175 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../services/api";
-
-const STEPS = ["Upload", "Extract", "Parse", "Analyze", "Rule Check", "Done"];
-
-const Upload = () => {
-  const [file, setFile] = useState(null);
-  const [billId, setBillId] = useState(null);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [stepStatus, setStepStatus] = useState({});
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-
-  const updateStep = (step, status, message) => {
-    setStepStatus((prev) => ({ ...prev, [step]: { status, message } }));
-  };
-
-  const handleFileChange = (e) => {
-    const selected = e.target.files[0];
-    if (selected) setFile(selected);
-  };
-
-  const runFullFlow = async () => {
-    if (!file) return setError("Please select a file first");
+import { Heading, Alert, Icon } from "../components/UI";
+import { message } from "../lib/bills";
+export default function Upload() {
+  const [file, setFile] = useState(null),
+    [limits, setLimits] = useState(null),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [drag, setDrag] = useState(false);
+  const picker = useRef(),
+    navigate = useNavigate();
+  useEffect(() => {
+    api
+      .get("/bills/limits")
+      .then((r) => setLimits(r.data))
+      .catch((e) => setError(message(e)));
+  }, []);
+  const choose = (f) => {
     setError("");
-    setLoading(true);
-
+    if (!f) return;
+    if (
+      !/\.(pdf|png|jpe?g)$/i.test(f.name) ||
+      !["application/pdf", "image/png", "image/jpeg"].includes(f.type)
+    ) {
+      setError("Choose a PDF, PNG, or JPEG file.");
+      return;
+    }
+    if (limits && f.size > limits.maxBytes) {
+      setError(
+        `This file exceeds ${limits.maxBytes / 1048576} MB. Split or compress it.`,
+      );
+      return;
+    }
+    setFile(f);
+  };
+  const upload = async () => {
+    setBusy(true);
+    setError("");
     try {
-      // Step 1 — Upload
-      setCurrentStep(1);
-      updateStep(1, "loading", "Uploading file...");
-      const formData = new FormData();
-      formData.append("bill", file);
-      const uploadRes = await api.post("/bills/upload", formData);
-      const id = uploadRes.data.bill._id;
-      setBillId(id);
-      updateStep(1, "done", "File uploaded");
-
-      // Step 2 — Extract
-      setCurrentStep(2);
-      updateStep(2, "loading", "Running OCR extraction...");
-      await api.post(`/bills/${id}/extract`);
-      updateStep(2, "done", "Text extracted");
-
-      // Step 3 — Parse
-      setCurrentStep(3);
-      updateStep(3, "loading", "Parsing bill data...");
-      await api.post(`/bills/${id}/parse`);
-      updateStep(3, "done", "Bill parsed");
-
-      // Step 4 — AI Analyze
-      setCurrentStep(4);
-      updateStep(4, "loading", "Running AI analysis (this may take a few seconds)...");
-      await api.post(`/bills/${id}/analyze`);
-      updateStep(4, "done", "AI analysis complete");
-
-      // Step 5 — Rule Check
-      setCurrentStep(5);
-      updateStep(5, "loading", "Running rule-based checks...");
-      await api.post(`/bills/${id}/rule-check`);
-      updateStep(5, "done", "Rule checks complete");
-
-      // Done
-      setCurrentStep(6);
-    } catch (err) {
-      setError(err.response?.data?.message || "Something went wrong. Please try again.");
+      const form = new FormData();
+      form.append("bill", file);
+      const { data } = await api.post("/bills/upload", form);
+      navigate(`/bills/${data.bill._id}?start=1`);
+    } catch (e) {
+      setError(message(e));
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
-
-  const getStepIcon = (stepNum) => {
-    const s = stepStatus[stepNum];
-    if (!s) return "○";
-    if (s.status === "loading") return "⟳";
-    if (s.status === "done") return "✓";
-    if (s.status === "error") return "✗";
-    return "○";
-  };
-
-  const getStepColor = (stepNum) => {
-    const s = stepStatus[stepNum];
-    if (!s) return "#9ca3af";
-    if (s.status === "loading") return "#2563eb";
-    if (s.status === "done") return "#16a34a";
-    if (s.status === "error") return "#dc2626";
-    return "#9ca3af";
-  };
-
   return (
-    <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-      <h1 style={{ fontSize: "1.75rem", fontWeight: "700", marginBottom: "0.5rem" }}>
-        Upload a Bill
-      </h1>
-      <p style={{ color: "#6b7280", marginBottom: "2rem" }}>
-        Upload your hospital bill and we'll automatically extract, parse, and analyze it.
-      </p>
-
-      {error && <div className="alert alert-error">{error}</div>}
-
-      {/* File Upload Area */}
-      {currentStep === 0 && (
-        <div className="card">
+    <>
+      <Heading title="Start with your bill." eyebrow="UPLOAD & UNDERSTAND">
+        A few simple steps from document to a more informed conversation.
+      </Heading>
+      <ol className="steps">
+        <li className="active">
+          1 <span>Upload</span>
+        </li>
+        <li>
+          2 <span>Read bill</span>
+        </li>
+        <li>
+          3 <span>Extract charges</span>
+        </li>
+        <li>
+          4 <span>Analyze</span>
+        </li>
+        <li>
+          5 <span>Complete</span>
+        </li>
+      </ol>
+      <div className="upload-layout">
+        <section className="card">
+          {error && <Alert>{error}</Alert>}
           <div
-            style={{
-              border: "2px dashed #d1d5db",
-              borderRadius: "10px",
-              padding: "2.5rem",
-              textAlign: "center",
-              cursor: "pointer",
-              background: file ? "#f0fdf4" : "#f9fafb",
-              borderColor: file ? "#16a34a" : "#d1d5db",
+            className={`dropzone ${drag ? "dragging" : ""}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDrag(true);
             }}
-            onClick={() => document.getElementById("fileInput").click()}
+            onDragLeave={() => setDrag(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDrag(false);
+              if (!busy) choose(e.dataTransfer.files[0]);
+            }}
           >
-            <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>
-              {file ? "📄" : "⬆️"}
-            </div>
-            <p style={{ fontWeight: "500", marginBottom: "0.25rem" }}>
-              {file ? file.name : "Click to select a file"}
+            <span className="upload-icon">
+              <Icon name="upload" />
+            </span>
+            <h2>{file ? file.name : "Drop your bill here"}</h2>
+            <p className="muted">
+              {file
+                ? `${(file.size / 1024).toFixed(0)} KB · ${file.type}`
+                : "or choose a file from your device"}
             </p>
-            <p style={{ fontSize: "0.85rem", color: "#6b7280" }}>
-              PNG, or JPG — max 10MB
+            <label className="btn secondary file-label">
+              {file ? "Replace file" : "Choose file"}
+              <input
+                ref={picker}
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg"
+                disabled={busy}
+                onChange={(e) => choose(e.target.files[0])}
+              />
+            </label>
+            <p className="file-help">
+              PDF, JPG or PNG ·{" "}
+              {limits
+                ? `${limits.maxBytes / 1048576} MB maximum · ${limits.maxPages} PDF pages`
+                : "Loading server limits…"}
             </p>
-            <input
-              id="fileInput"
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg"
-              onChange={handleFileChange}
-              style={{ display: "none" }}
-            />
           </div>
-
           {file && (
-            <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem" }}>
+            <div className="actions">
               <button
-                className="btn btn-primary"
-                style={{ flex: 1 }}
-                onClick={runFullFlow}
-                disabled={loading}
+                className="btn primary"
+                onClick={upload}
+                disabled={busy || !limits}
               >
-                Start Analysis
+                {busy ? "Uploading…" : "Upload and read bill"}
+                <Icon name="arrow" />
               </button>
               <button
-                className="btn btn-gray"
-                onClick={() => setFile(null)}
-                disabled={loading}
+                className="quiet"
+                disabled={busy}
+                onClick={() => {
+                  setFile(null);
+                  picker.current.value = "";
+                }}
               >
-                Clear
+                Remove file
               </button>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Progress Steps */}
-      {currentStep > 0 && currentStep < 6 && (
-        <div className="card">
-          <h2 style={{ fontSize: "1.1rem", fontWeight: "600", marginBottom: "1.5rem" }}>
-            Processing your bill...
-          </h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {[1, 2, 3, 4, 5].map((step) => (
-              <div key={step} style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                <div
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "50%",
-                    background: getStepColor(step),
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.9rem",
-                    fontWeight: "700",
-                    flexShrink: 0,
-                  }}
-                >
-                  {getStepIcon(step)}
-                </div>
-                <div>
-                  <p style={{ fontWeight: "500", fontSize: "0.9rem" }}>
-                    {STEPS[step]}
-                  </p>
-                  {stepStatus[step] && (
-                    <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>
-                      {stepStatus[step].message}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Done */}
-      {currentStep === 6 && (
-        <div className="card" style={{ textAlign: "center", padding: "2.5rem" }}>
-          <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>✅</div>
-          <h2 style={{ fontSize: "1.25rem", fontWeight: "700", marginBottom: "0.5rem" }}>
-            Analysis Complete!
-          </h2>
-          <p style={{ color: "#6b7280", marginBottom: "1.5rem" }}>
-            Your bill has been fully analyzed. View the results below.
+          <p className="caption">
+            You’ll review extracted charges before analysis. English-language
+            OCR is supported.
           </p>
-          <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
-            <button
-              className="btn btn-primary"
-              onClick={() => navigate(`/bills/${billId}`)}
-            >
-              View Analysis
-            </button>
-            <button
-              className="btn btn-gray"
-              onClick={() => {
-                setFile(null);
-                setBillId(null);
-                setCurrentStep(0);
-                setStepStatus({});
-              }}
-            >
-              Upload Another
-            </button>
+        </section>
+        <aside>
+          <section className="card">
+            <p className="eyebrow">WHAT HAPPENS NEXT</p>
+            <h2>Review first. Then understand.</h2>
+            <ul className="explain-list">
+              <li>
+                <strong>Read every page</strong>
+                <p>Text is extracted directly or read using OCR.</p>
+              </li>
+              <li>
+                <strong>Keep you in control</strong>
+                <p>Check amounts, currency and totals before continuing.</p>
+              </li>
+              <li>
+                <strong>Prepare better questions</strong>
+                <p>Review rule findings and separate AI suggestions.</p>
+              </li>
+            </ul>
+          </section>
+          <div className="privacy-note">
+            Original uploads are temporary and removed after text extraction, or
+            within {limits?.retentionHours || 24} hours while the server runs.
+            Saved text and results stay in your account until you delete the
+            bill.
           </div>
-        </div>
-      )}
-    </div>
+          <Link className="text-link" to="/sample">
+            Just exploring? Try a sample bill →
+          </Link>
+        </aside>
+      </div>
+    </>
   );
-};
-
-export default Upload;
+}

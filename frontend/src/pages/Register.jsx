@@ -31,7 +31,9 @@ const Register = () => {
       await register(name, email, password);
       navigate("/dashboard");
     } catch (err) {
-      setError(err.response?.data?.message || "Registration failed. Please try again.");
+      setError(
+        err.response?.data?.message || "Registration failed. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -47,8 +49,9 @@ const Register = () => {
       <div className="card">
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Full Name</label>
+            <label htmlFor="full-name">Full Name</label>
             <input
+              id="full-name"
               type="text"
               placeholder="Mubashir"
               value={name}
@@ -58,8 +61,9 @@ const Register = () => {
           </div>
 
           <div className="form-group">
-            <label>Email</label>
+            <label htmlFor="email">Email</label>
             <input
+              id="email"
               type="email"
               placeholder="you@example.com"
               value={email}
@@ -69,8 +73,9 @@ const Register = () => {
           </div>
 
           <div className="form-group">
-            <label>Password</label>
+            <label htmlFor="password">Password</label>
             <input
+              id="password"
               type="password"
               placeholder="••••••••"
               value={password}
@@ -80,8 +85,9 @@ const Register = () => {
           </div>
 
           <div className="form-group">
-            <label>Confirm Password</label>
+            <label htmlFor="confirm-password">Confirm Password</label>
             <input
+              id="confirm-password"
               type="password"
               placeholder="••••••••"
               value={confirm}
@@ -90,22 +96,17 @@ const Register = () => {
             />
           </div>
 
-          <button
-            type="submit"
-            className="btn btn-primary"
-            style={{ width: "100%", marginTop: "0.5rem" }}
-            disabled={loading}
-          >
+          <button type="submit" className="btn btn-primary" disabled={loading}>
             {loading ? "Creating account..." : "Create Account"}
           </button>
         </form>
+        <Link className="sample-auth" to="/sample">
+          Try a sample bill — no account needed →
+        </Link>
       </div>
 
-      <p style={{ textAlign: "center", color: "#6b7280", fontSize: "0.9rem" }}>
-        Already have an account?{" "}
-        <Link to="/login" style={{ color: "#2563eb" }}>
-          Log in here
-        </Link>
+      <p>
+        Already have an account? <Link to="/login">Log in here</Link>
       </p>
     </div>
   );

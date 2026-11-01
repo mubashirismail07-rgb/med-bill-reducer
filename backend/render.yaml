@@ -1,9 +1,19 @@
 services:
   - type: web
-    name: medreduce-backend
-    runtime: node
-    buildCommand: npm install
-    startCommand: node server.js
+    name: medreduce-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /
     envVars:
       - key: NODE_ENV
         value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FRONTEND_URLS
+        value: https://med-bill-reducer.vercel.app
